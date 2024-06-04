@@ -9,13 +9,18 @@ differences between cells (variance of lib-size), under thge constraint that the
 variance of the library-size factor. This constraints results from the assumption that the covariance between any protein and the lib-size
 factor should be close to zero!
 
+INPUT DATA:
+-------------------
 @SCData:
 A dataframe of single-cells times proteins. Cells are in rows (cellIDs in the rowname), and every protein is in a column.
+@eta: weight for concentratin on libsize minimization / cov(prot, normFactor) minimization
+    eta towards 1 results in covariances going to zero
+    eta towards 0 is only library size normalisation
 
+PUBLIC FUNCTIONS:
+-------------------
 @solve: solves the Normalization problem
-
 @get_normalized_scdata: return the origional matrix with the normalized counts
-
 @get_sclaing_factors: returns a dataframe with scaling factors for every cell, the cellIDs are in the row names
 """
 class CorrNorm():
@@ -134,12 +139,12 @@ class CorrNorm():
             var = self._betaVars
             coef = []
             for cellID in range(0, self._scdata.shape[0]):
-                coef.append(self._scdatalog.iloc[cellID, protID] * +1.)
+                coef.append(self._scdatalog.iloc[cellID, protID]/np.std(self._scdatalog.iloc[:, protID]) * +1.)
                 
             #covaraince between protein & beta
             #NEGATIVE THRESHOLD
             linearExpr = cplex.SparsePair(ind=var + ["neg_covThres"], val=coef + [-1.0])
-            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[-1.0] * len(var))
+            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[-1.0/np.std(self._scdatalog.iloc[:, protID])] * len(var))
             std = np.std(self._scdatalog.iloc[:, protID])
             self._cpx.quadratic_constraints.add(
                 lin_expr=linearExpr,
@@ -167,6 +172,14 @@ class CorrNorm():
     def solve(self):
         self._cpx.solve()
         
+        #get all the beta factors
+        self._logBetaFactors = self.get_beta_values()
+        #take exp of all values (we worked in log10 space)
+        self._trueBetaFactors = [10**x for x in self._logBetaFactors]
+        
+        #calculate the normalized matrix
+        self._normalizedScData = self._scdata.apply(lambda row: self.__divide_row_by_value(row, self._trueBetaFactors[self._scdata.index.get_loc(row.name)]), axis=1)
+
     def get_beta_values(self):
         
         assert self._cpx.solution.is_primal_feasible()
@@ -186,26 +199,58 @@ class CorrNorm():
         variableValues = self._cpx.solution.get_values(covThresholds)
         return(variableValues)
         
+    def __divide_row_by_value(self, row, value):
+        return (row / value)
 
-    #def get_normalized_scdata():
-    
     def get_librarySize_variance(self):
         
-        #get all the beta factors
-        logBetaFactors = self.get_beta_values()
-        
-        #take exp of all values (we worked in log10 space)
-        trueBetaFactors = [10**x for x in logBetaFactors]
-
         #divide origional library sizes by this value
-        scaledLibsize = self._libSize / trueBetaFactors
+        scaledLibsize = self._libSize / self._trueBetaFactors
         
         #then calculate var of those values
-        return(scaledLibsize)
+        return(np.var(scaledLibsize))
         
-    #def get_mean_of_absolute_covariances():
-        
-        
-        
-    #def plot_libsizeVar_against_meanAbsCov():
+    #log scale
+    def get_mean_of_absolute_covariances_log(self):
+        absCovSum = 0
+        for proteinID in range(0, self._scdata.shape[1]):
+            proteinCounts = self._scdatalog.iloc[:, proteinID]
+            print("Protein counts")
+            print("_____________")
+            print(proteinCounts)
+            covTmp = np.cov(proteinCounts, self._logBetaFactors)[0][1]
+            print("Aclced Cov: ")
+            print(covTmp)
+            absCovSum += np.abs(covTmp)
+        return(absCovSum/self._scdata.shape[1])
+    
+    #my weird sclaing
+    def get_mean_of_absolute_covariances(self):
+        absCovSum = 0
+        for proteinID in range(0, self._scdata.shape[1]):
+            proteinCounts = self._normalizedScData.iloc[:, proteinID]
+            print("Protein counts")
+            print("_____________")
+            print(proteinCounts)
+            covTmp = np.cov(proteinCounts/np.std(proteinCounts), self._trueBetaFactors)[0][1]
+            print("Aclced Cov: ")
+            print(covTmp)
+            absCovSum += np.abs(covTmp)
+        return(absCovSum/self._scdata.shape[1])
+    
+    def get_average_corrcoef(self):
+        absCovSum = 0
+        for proteinID in range(0, self._scdata.shape[1]):
+            proteinCounts = self._normalizedScData.iloc[:, proteinID]
+            print("Protein counts")
+            print("_____________")
+            print(proteinCounts)
+            covTmp = np.corrcoef(proteinCounts, self._trueBetaFactors)[0][1]
+            print("Aclced Cov: ")
+            print(covTmp)
+            absCovSum += np.abs(covTmp)
+        return(absCovSum/self._scdata.shape[1])
+    
+    def get_normalized_data(self):
+        return(self._normalizedScData)
         
