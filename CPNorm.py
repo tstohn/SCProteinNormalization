@@ -144,7 +144,7 @@ class CorrNorm():
             #covaraince between protein & beta
             #NEGATIVE THRESHOLD
             linearExpr = cplex.SparsePair(ind=var + ["neg_covThres"], val=coef + [-1.0])
-            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[-1.0/np.std(self._scdatalog.iloc[:, protID])] * len(var))
+            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[-1.0] * len(var))
             std = np.std(self._scdatalog.iloc[:, protID])
             self._cpx.quadratic_constraints.add(
                 lin_expr=linearExpr,
@@ -218,7 +218,7 @@ class CorrNorm():
             print("Protein counts")
             print("_____________")
             print(proteinCounts)
-            covTmp = np.cov(proteinCounts, self._logBetaFactors)[0][1]
+            covTmp = np.cov(proteinCounts/np.std(proteinCounts), self._logBetaFactors)[0][1]
             print("Aclced Cov: ")
             print(covTmp)
             absCovSum += np.abs(covTmp)
@@ -229,12 +229,7 @@ class CorrNorm():
         absCovSum = 0
         for proteinID in range(0, self._scdata.shape[1]):
             proteinCounts = self._normalizedScData.iloc[:, proteinID]
-            print("Protein counts")
-            print("_____________")
-            print(proteinCounts)
             covTmp = np.cov(proteinCounts/np.std(proteinCounts), self._trueBetaFactors)[0][1]
-            print("Aclced Cov: ")
-            print(covTmp)
             absCovSum += np.abs(covTmp)
         return(absCovSum/self._scdata.shape[1])
     
