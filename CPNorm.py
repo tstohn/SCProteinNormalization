@@ -138,14 +138,14 @@ class CorrNorm():
         for protID in range(0, len(self._scdata.columns)):
             var = self._betaVars
             coef = []
+            std = np.std(self._scdatalog.iloc[:, protID])
             for cellID in range(0, self._scdata.shape[0]):
-                coef.append(self._scdatalog.iloc[cellID, protID]/np.std(self._scdatalog.iloc[:, protID]) * +1.)
-                
+                coef.append(self._scdatalog.iloc[cellID, protID] * (+1./std))
+            
             #covaraince between protein & beta
             #NEGATIVE THRESHOLD
             linearExpr = cplex.SparsePair(ind=var + ["neg_covThres"], val=coef + [-1.0])
-            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[-1.0] * len(var))
-            std = np.std(self._scdatalog.iloc[:, protID])
+            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[(-1.0)/std] * len(var))
             self._cpx.quadratic_constraints.add(
                 lin_expr=linearExpr,
                 quad_expr=quadricExpr,
@@ -156,7 +156,7 @@ class CorrNorm():
                         
             #POSITIVE THRESHOLD
             linearExpr = cplex.SparsePair(ind=var + ["pos_covThres"], val=coef + [+1.0])
-            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[-1.0] * len(var))
+            quadricExpr = cplex.SparseTriple(ind1=var, ind2=var, val=[(-1.0)/std] * len(var))
             std = np.std(self._scdatalog.iloc[:, protID])
             self._cpx.quadratic_constraints.add(
                 lin_expr=linearExpr,
@@ -214,12 +214,14 @@ class CorrNorm():
     def get_mean_of_absolute_covariances_log(self):
         absCovSum = 0
         for proteinID in range(0, self._scdata.shape[1]):
+            
+            std = np.std(self._scdatalog.iloc[:, proteinID])
             proteinCounts = self._scdatalog.iloc[:, proteinID]
             print("Protein counts")
             print("_____________")
             print(proteinCounts)
-            covTmp = np.cov(proteinCounts/np.std(proteinCounts), self._logBetaFactors)[0][1]
-            print("Aclced Cov: ")
+            covTmp = np.cov(proteinCounts, self._logBetaFactors)[0][1]/std
+            print("Calced Cov: ")
             print(covTmp)
             absCovSum += np.abs(covTmp)
         return(absCovSum/self._scdata.shape[1])
@@ -229,7 +231,7 @@ class CorrNorm():
         absCovSum = 0
         for proteinID in range(0, self._scdata.shape[1]):
             proteinCounts = self._normalizedScData.iloc[:, proteinID]
-            covTmp = np.cov(proteinCounts/np.std(proteinCounts), self._trueBetaFactors)[0][1]
+            covTmp = np.cov(proteinCounts, self._trueBetaFactors)[0][1]/np.std(proteinCounts)
             absCovSum += np.abs(covTmp)
         return(absCovSum/self._scdata.shape[1])
     
