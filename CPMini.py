@@ -258,15 +258,16 @@ class CorrMini():
                 
                 
         #CHECK CELL SIMILARTIY
-        for cell_i in range(len(self._starting_values)):
-            #print("_______")
+        if(self._neighbors > 0):
+            for cell_i in range(len(self._starting_values)):
+                #print("_______")
 
-            #print(self._scdata.index[cell_i])
-            adjacentCells = self._adjMatrix[cell_i]
-            #print(adjacentCells)
-            adjacentBetas = self._result.x[adjacentCells]
-            libBetas = self._starting_values[adjacentCells]
-            #print((adjacentBetas[0]-libBetas[0]))
+                #print(self._scdata.index[cell_i])
+                adjacentCells = self._adjMatrix[cell_i]
+                #print(adjacentCells)
+                adjacentBetas = self._result.x[adjacentCells]
+                libBetas = self._starting_values[adjacentCells]
+                #print((adjacentBetas[0]-libBetas[0]))
                 
     def get_logbeta_values(self):
         return(self._result.x)
