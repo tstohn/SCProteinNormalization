@@ -138,6 +138,25 @@ class CorrMini():
             # Store the 10 closest row indices
             self._adjMatrix[i] = sorted_indices[:self._neighbors].tolist()
     
+    #same as _equations_covariance which is used for the optimization function, however, this one SQUARES the final correlations
+    #this can be used as additional constraint to keep corr below a certain threshold and focussing more in libsize norm
+    def _constraint_protein_beta_corr(self, x):
+        equations = []
+        #for every protein set up an equation
+        for protID in range(0, len(self._scdata.columns)):
+            for protJD in range(0, len(self._scdata.columns)):
+                if(protJD == protID): continue
+
+                equationValue = np.corrcoef(np.array(self._scdatalog.iloc[:, protID] - x), x)[0,1]
+                if(np.isnan(equationValue)):
+                    print("WARNING: covariance = NAN for" + str(protID) + " " + str(np.corrcoef(np.array(self._scdatalog.iloc[:, protID] - x), np.array(x))[0,1]) + "\n")
+                    equationValue = 0
+                
+                equations.append(equationValue ** 2)
+
+        #return the whole set of equations
+        return(np.array(equations))
+    
     def _constraint_beta_similarity(self, x):
         constraints = []
 
@@ -157,12 +176,12 @@ class CorrMini():
         
         print("######## START #########")
         print("Covariance Terms: ")
-        eqs = self._equations_covariance(np.random.rand(len(self._starting_values)), 1.0)
+        eqs = self._equations_covariance(np.random.rand(len(self._starting_values)))
         #print(eqs)
         print(str(np.sum(eqs**2)))
         
         print("Libsize Terms: ")
-        eqs = self._equations_libsize(np.random.rand(len(self._starting_values)), 0.0)
+        eqs = self._equations_libsize(np.random.rand(len(self._starting_values)))
         print(str(eqs))
         
         print("Difference:")
@@ -175,7 +194,8 @@ class CorrMini():
     def solve(self, eta, neighbors = 50, minVariation = 0.0001):
 
         self._neighbors = neighbors
-        self._calculate_cell_similarity()
+        if(self._neighbors > 0):
+            self._calculate_cell_similarity()
                 
         #we assume that we divide the counts by a beta (N = M-B)
         # the first initla guess is that beta=libsize vector
@@ -203,6 +223,10 @@ class CorrMini():
         # LinearConstraint requires lb and ub to be set
         cons1 = LinearConstraint(A, lb=b, ub=b)
         cons2 = NonlinearConstraint(self._constraint_beta_similarity, 0, minVariation)
+        
+        #only in case i want to constraint covraiance parts between thresholds
+        minCorrelation = 0.04
+        cons3 = NonlinearConstraint(self._constraint_protein_beta_corr, 0, minCorrelation)
         
         if(self._neighbors > 0):
             cons = [cons1, cons2]
